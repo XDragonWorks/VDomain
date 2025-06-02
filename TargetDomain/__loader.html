@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>V-Domain Loader</title>
+    <script>
+
+        const url = new URL(location.href);
+        const theme = url.searchParams.get("theme");
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.classList.add("theme-" + theme);
+        });
+        const PARENT_DOMAIN = '*';
+
+        console.log('Loader: Initializing...');
+
+        if ('serviceWorker' in navigator && 'MessageChannel' in window) {
+            const channel = new MessageChannel();
+            const port1 = channel.port1;
+            const port2 = channel.port2;
+
+            console.log('Loader: MessageChannel created.');
+
+            navigator.serviceWorker.register('./__sw.js', { scope: '/' })
+                .then(registration => {
+                    console.log('Loader: SW registered successfully:', registration);
+
+                    return navigator.serviceWorker.ready;
+                })
+                .then(registration => {
+                    console.log('Loader: SW is ready (active). Sending Port 2 to SW.');
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ type: 'INIT_PORT' }, [port2]);
+                        console.log('Loader: Port 2 sent to SW.');
+                    } else {
+                        console.error('Loader: SW controller not found, cannot send port.');
+                        document.body.innerHTML = '<h1>错误</h1><p>未检测到sw controller, 无法与Service Worker建立通讯</p>';
+                        if (window.parent !== window) {
+                            window.parent.postMessage({ type: 'LOADER_ERROR', error: 'SW controller not found after ready.' }, PARENT_DOMAIN);
+                        }
+                        return;
+                    }
+
+
+                    if (window.parent !== window) {
+                        console.log('Loader: Sending Port 1 to Parent Window.');
+                        window.parent.postMessage({ type: 'LOADER_READY_WITH_PORT' }, PARENT_DOMAIN, [port1]);
+                        console.log('Loader: Port 1 sent to Parent Window.');
+                    } else {
+                        console.log('Loader: Not in an iframe, cannot send port to parent.');
+                        document.body.innerHTML = '<h1>错误</h1><p>非iframe环境, 无法与宿主页面建立通讯</p>';
+                        return;
+                    }
+
+                    const redirectUrl = url.searchParams.get("redirect");
+                    if (redirectUrl){
+                        // 延迟后跳转
+                        document.body.innerHTML = '<h1>通讯建立成功</h1><p>正在跳转至目标页面...</p>';
+                        setTimeout(() => location.href = redirectUrl, 250);
+                    }else {
+                        document.body.innerHTML = '<h1>通讯建立成功</h1><p>等待预览</p>';
+                    }
+
+                })
+                .catch(error => {
+                    console.error('Loader: SW registration or readiness failed:', error);
+                    if (window.parent !== window) {
+                        window.parent.postMessage({ type: 'LOADER_ERROR', error: `SW Error: ${error.message}` }, PARENT_DOMAIN);
+                    }
+                });
+        } else {
+            const errorMsg = !('serviceWorker' in navigator)
+                ? 'Service Worker不支持, 无法使用VDomain预览功能'
+                : 'MessageChannel不支持, 无法使用VDomain预览功能';
+            console.error('Loader:', errorMsg);
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'LOADER_ERROR', error: errorMsg }, PARENT_DOMAIN);
+            }
+            document.body.innerHTML = `<h1>错误</h1><p>${errorMsg}</p><hr><button id="reload-button" type="button">重新加载</button>`;
+            document.querySelector('#reload-button').onload = () => location.reload();
+        }
+
+        // 自动心跳包
+        setInterval(() => {
+            fetch("/__HeartBeat");
+        }, 5000);
+    </script>
+</head>
+
+<body>
+    <h1>初始化通讯...</h1>
+</body>
+
+</html>
