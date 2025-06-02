@@ -267,7 +267,7 @@ self.addEventListener('fetch', event => {
 
                     // 是否走代理
                     if (swSettings.proxyUrl === 'none'){
-                        return fetch(request);
+                        return null;
                     }else {
                         return proxyFetchInSW(request);
                     }
