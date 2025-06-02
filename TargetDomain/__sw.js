@@ -264,8 +264,13 @@ self.addEventListener('fetch', event => {
                 if (allowed) {
                     // 如果 IDE 允许
                     console.log(`SW: Proxy permission granted for request ID ${requestId}. Proceeding with proxy fetch.`);
-                    // 执行实际的代理 fetch 函数
-                    return proxyFetchInSW(request);
+
+                    // 是否走代理
+                    if (swSettings.proxyUrl === 'none'){
+                        return fetch(request);
+                    }else {
+                        return proxyFetchInSW(request);
+                    }
                 } else {
                     // 如果 IDE 拒绝
                     console.log(`SW: Proxy permission denied by IDE for request ID ${requestId}.`);
